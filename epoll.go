@@ -67,7 +67,7 @@ func (s *Server) Register(conn net.Conn) error {
 	return nil
 }
 
-func (s *Server) DeRegister(fd int) error {
+func (s *Server) Deregister(fd int) error {
 	err := s.poll.Deregister(fd)
 	if err != nil {
 		return err

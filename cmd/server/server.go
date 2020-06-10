@@ -116,13 +116,13 @@ func callback(ev *poller.Event) {
 	case ev.IsReadable():
 		ants.Submit(func() {
 			if err := runJob(c); err != nil {
-				server.DeRegister(fd)
+				server.Deregister(fd)
 				//log.Println(err)
 				c.Close()
 			}
 		})
 	case ev.IsWriteClosed() || ev.IsReadClosed():
-		server.DeRegister(fd)
+		server.Deregister(fd)
 		c.Close()
 	}
 }
