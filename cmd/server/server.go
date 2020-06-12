@@ -18,6 +18,9 @@ import (
 
 var server *crab.Server
 
+var WakerToken = poller.Token(0)
+var ClinetToken = poller.Token(1)
+
 func main() {
 	defer ants.Release()
 	var isTLS bool
@@ -34,7 +37,7 @@ func main() {
 		panic(err)
 	}
 	var err error
-	server, err = crab.NewServer()
+	server, err = crab.NewServer(WakerToken)
 	if err != nil {
 		panic(err)
 	}
@@ -97,7 +100,7 @@ func main() {
 				return
 			}
 
-			if err := server.Register(c); err != nil {
+			if err := server.Register(c, ClinetToken); err != nil {
 				log.Printf("Failed to add connection %v", err)
 				c.Close()
 			}
@@ -106,7 +109,7 @@ func main() {
 }
 
 func callback(ev *poller.Event) {
-	fd := int(ev.Token())
+	fd := int(ev.Fd)
 	c := server.GetConn(fd)
 	if c == nil {
 		return

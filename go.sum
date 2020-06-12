@@ -18,6 +18,10 @@ github.com/widaT/poller v0.0.0-20200610022906-870cf9315639 h1:JphdbYQg/OAonFIybQ
 github.com/widaT/poller v0.0.0-20200610022906-870cf9315639/go.mod h1:aCqdJ1yq6G1LB1aSmIhCcGTchh0UshJHnFirKgquL3g=
 github.com/widaT/poller v0.0.0-20200610031442-5fcb44f0f06c h1:30KsbLUZ2Eaa/Lc4H1aM0C8XFTI7HG/WPINrXf/WmDs=
 github.com/widaT/poller v0.0.0-20200610031442-5fcb44f0f06c/go.mod h1:aCqdJ1yq6G1LB1aSmIhCcGTchh0UshJHnFirKgquL3g=
+github.com/widaT/poller v0.0.0-20200611030039-5bbcf6baf496 h1:kZnK5tJZ/sXH75k9YsD648uu/RCY4IbfEDUldf66Ty0=
+github.com/widaT/poller v0.0.0-20200611030039-5bbcf6baf496/go.mod h1:aCqdJ1yq6G1LB1aSmIhCcGTchh0UshJHnFirKgquL3g=
+github.com/widaT/poller v0.0.0-20200612021229-aad27ea42325 h1:+QqMWHl/OCbJGEdxCQ6v6ApUXKPC2YPjPP8DxrYhDuQ=
+github.com/widaT/poller v0.0.0-20200612021229-aad27ea42325/go.mod h1:aCqdJ1yq6G1LB1aSmIhCcGTchh0UshJHnFirKgquL3g=
 golang.org/x/sys v0.0.0-20200602225109-6fdc65e7d980 h1:OjiUf46hAmXblsZdnoSXsEUSKU8r1UEzcL5RVZ4gO9Y=
 golang.org/x/sys v0.0.0-20200602225109-6fdc65e7d980/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=

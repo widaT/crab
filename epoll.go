@@ -23,13 +23,12 @@ type Server struct {
 	lock        *Locker
 }
 
-func NewServer() (server *Server, err error) {
+func NewServer(wakerToken poller.Token) (server *Server, err error) {
 	server = new(Server)
 	server.poll, err = poller.New()
 	if err != nil {
 		return
 	}
-	wakerToken := poller.Token(0)
 	server.waker, err = waker.New(server.poll, wakerToken)
 	if err != nil {
 		return
@@ -55,12 +54,12 @@ func (s *Server) GetConn(fd int) net.Conn {
 	return nil
 }
 
-func (s *Server) Register(conn net.Conn) error {
+func (s *Server) Register(conn net.Conn, token poller.Token) error {
 	fd, err := poller.NetConn2Fd(conn, false)
 	if err != nil {
 		return err
 	}
-	if s.poll.Register(fd, poller.Token(fd), interest.READABLE, pollopt.Edge) != nil {
+	if s.poll.Register(fd, token, interest.READABLE, pollopt.Edge) != nil {
 		return err
 	}
 	s.connections.Store(fd, conn)
@@ -85,7 +84,6 @@ func (s *Server) Polling(callback func(*poller.Event)) {
 			log.Println(err)
 			continue
 		}
-
 		for i := 0; i < n; i++ {
 			ev := events[i]
 			switch ev.Token() {
