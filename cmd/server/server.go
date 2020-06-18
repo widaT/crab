@@ -108,11 +108,11 @@ func main() {
 	}
 }
 
-func callback(ev *poller.Event) {
+func callback(ev *poller.Event) error {
 	fd := int(ev.Fd)
 	c := server.GetConn(fd)
 	if c == nil {
-		return
+		return nil
 	}
 
 	switch {
@@ -128,6 +128,7 @@ func callback(ev *poller.Event) {
 		server.Deregister(fd)
 		c.Close()
 	}
+	return nil
 }
 
 func runJob(conn net.Conn) error {
