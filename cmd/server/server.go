@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
-	"encoding/json"
+	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -67,7 +69,17 @@ func main() {
 		runtime.LockOSThread()
 		server.Polling(callback)
 	}()
-
+	u := ws.Upgrader{
+		OnHeader: func(key, value []byte) (err error) {
+			log.Printf("header: %q=%q", key, value)
+			if bytes.Equal(bytes.ToLower(key), []byte("token")) {
+				if !bytes.Equal(value, []byte("abcd")) {
+					err = errors.New("auth faild")
+				}
+			}
+			return
+		},
+	}
 	for {
 		c, err := ln.Accept()
 		if err != nil {
@@ -75,31 +87,16 @@ func main() {
 		}
 
 		ants.Submit(func() {
-			_, err = ws.Upgrade(c)
+			handshake, err := u.Upgrade(c)
 			if err != nil {
 				return
 			}
 
-			//User Authentication
-			frame, err := ws.ReadFrame(c)
-			if err != nil {
-				return
-			}
-			if frame.Header.Masked {
-				ws.Cipher(frame.Payload, frame.Header.Mask, 0)
-			}
-			type Info struct {
-				Token string
-			}
-			info := Info{}
-			json.Unmarshal(frame.Payload, &info)
-			if info.Token != "abcd" {
-				frame := ws.NewCloseFrame([]byte(`{"ret":"Authentication faild"}`))
-				ws.WriteFrame(c, frame)
-				c.Close()
-				return
-			}
+			//fmt.Println(handshake.Protocol, handshake.Extensions)
 
+			for _, v := range handshake.Extensions {
+				fmt.Println(v)
+			}
 			if err := server.Register(c, ClinetToken); err != nil {
 				log.Printf("Failed to add connection %v", err)
 				c.Close()

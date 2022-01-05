@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
@@ -25,20 +26,18 @@ func main() {
 	if *isTLS {
 		Scheme = "wss"
 	}
-	u := url.URL{Scheme: Scheme, Host: *addr, Path: "/"}
+	u := url.URL{Scheme: Scheme, Host: *addr, Path: "/auto"}
 	log.Printf("connecting to %s", u.String())
 
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	header := make(http.Header)
+
+	header["token"] = []string{"abcd"}
+
+	c, _, err := websocket.DefaultDialer.Dial(u.String(), header)
 	if err != nil {
 		log.Fatal("dial:", err)
 	}
 	defer c.Close()
-
-	//Authentication
-
-	auth := `{"token":"abcd"}`
-
-	c.WriteMessage(websocket.TextMessage, []byte(auth))
 
 	done := make(chan struct{})
 
