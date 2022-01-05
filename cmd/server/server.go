@@ -1,14 +1,13 @@
 package main
 
 import (
-	"bytes"
 	"crypto/tls"
 	"errors"
 	"flag"
-	"fmt"
 	"io"
 	"log"
 	"net"
+	"net/url"
 	"runtime"
 	"syscall"
 
@@ -70,14 +69,16 @@ func main() {
 		server.Polling(callback)
 	}()
 	u := ws.Upgrader{
-		OnHeader: func(key, value []byte) (err error) {
-			log.Printf("header: %q=%q", key, value)
-			if bytes.Equal(bytes.ToLower(key), []byte("token")) {
-				if !bytes.Equal(value, []byte("abcd")) {
-					err = errors.New("auth faild")
-				}
+		//token认证
+		OnRequest: func(uri []byte) error {
+			values, err := url.ParseRequestURI(string(uri))
+			if err != nil {
+				return err
 			}
-			return
+			if values.Query().Get("token") != "abcd" {
+				return errors.New("auth failed")
+			}
+			return nil
 		},
 	}
 	for {
@@ -87,15 +88,9 @@ func main() {
 		}
 
 		ants.Submit(func() {
-			handshake, err := u.Upgrade(c)
+			_, err := u.Upgrade(c)
 			if err != nil {
 				return
-			}
-
-			//fmt.Println(handshake.Protocol, handshake.Extensions)
-
-			for _, v := range handshake.Extensions {
-				fmt.Println(v)
 			}
 			if err := server.Register(c, ClinetToken); err != nil {
 				log.Printf("Failed to add connection %v", err)
