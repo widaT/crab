@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/widaT/crab"
 )
 
 var addr = flag.String("addr", "localhost:8888", "http service address")
@@ -51,21 +52,18 @@ func main() {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
+	//第一条消息注册下设备sn
+	message := crab.Message{
+		Type:    crab.TJoin,
+		Payload: "no123456",
+	}
+	c.WriteMessage(websocket.TextMessage, message.ToJSON())
 	for {
 		select {
 		case <-done:
 			return
-		case t := <-ticker.C:
-			err := c.WriteMessage(websocket.TextMessage, []byte(t.String()))
-			if err != nil {
-				log.Println("write:", err)
-				return
-			}
 		case <-interrupt:
 			log.Println("interrupt")
-
-			// Cleanly close the connection by sending a close message and then
-			// waiting (with timeout) for the server to close the connection.
 			err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
 				log.Println("write close:", err)
