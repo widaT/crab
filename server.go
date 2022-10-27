@@ -1,92 +1,184 @@
 package crab
 
 import (
+	"encoding/json"
+	"errors"
+	"io"
 	"log"
-	"net"
+	"net/http"
+	_ "net/http/pprof"
 	"sync"
 
-	"github.com/widaT/poller"
-	"github.com/widaT/poller/interest"
-	"github.com/widaT/poller/pollopt"
+	"github.com/gobwas/ws"
+	"golang.org/x/sys/unix"
 )
 
 type Server struct {
-	poller      *poller.Poller
-	connections sync.Map
-	sn2fd       sync.Map
-	lock        *Locker
-	Handler     func(c *Conn, in []byte) error
+	Sn2Conn map[string]*Conn
+	lock    sync.RWMutex
+	Handler func(c *Conn, in []byte) error
+	Epoller *epoll
 }
 
-func NewServer(wakerToken poller.Token, handler func(c *Conn, in []byte) error) (server *Server, err error) {
-	server = new(Server)
-	server.poller, err = poller.NewPoller()
+var server *Server
+
+func wsHandler(w http.ResponseWriter, r *http.Request) {
+	// Upgrade connection
+	c, _, _, err := ws.UpgradeHTTP(r, w)
 	if err != nil {
 		return
 	}
-	server.lock = new(Locker)
-	server.Handler = handler
-	return
+
+	// 认证
+	// if r.URL.Query().Get("token") != "abcd" {
+	// 	w.Write([]byte("forbidden"))
+	// 	return
+	// }
+
+	conn := &Conn{
+		C: c,
+		S: server,
+		//Sn: msg.Payload,
+	}
+	if err := server.Epoller.Add(conn); err != nil {
+		log.Printf("Failed to add connection %v", err)
+		conn.Close()
+	}
+}
+func runApiServer() {
+	http.HandleFunc("/send_msg", func(rw http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		var sn, message string
+		if len(r.PostForm["sn"]) > 0 {
+			sn = r.PostForm["sn"][0]
+		}
+		if len(r.PostForm["msg"]) > 0 {
+			message = r.PostForm["msg"][0]
+		}
+
+		log.Printf("post data sn:%q msg:%q", sn, message)
+		sendMessage(sn, []byte(message))
+	})
+	http.ListenAndServe(":9333", nil)
 }
 
-func (s *Server) AddTask(f func()) {
-	s.lock.Lock()
-	s.poller.AddTask(f)
-	s.lock.Unlock()
-	if err := s.poller.Wake(); err != nil {
-		log.Printf("wakeup job err ：%s \n", err)
+func sendMessage(sn string, message []byte) error {
+	c := server.GetConnBySn(sn)
+	if c != nil {
+		frame := ws.NewTextFrame(message)
+		ws.WriteFrame(c.C, frame)
+		return nil
+	}
+	return errors.New("sn2connection error")
+}
+
+func Run() {
+	go runApiServer()
+
+	epoller, err := MkEpoll()
+	if err != nil {
+		panic(err)
+	}
+
+	server = &Server{
+		Sn2Conn: make(map[string]*Conn),
+		Handler: HandleMsg,
+		Epoller: epoller,
+	}
+	go server.Start()
+
+	http.HandleFunc("/", wsHandler)
+	if err := http.ListenAndServe("0.0.0.0:8888", nil); err != nil {
+		log.Fatal(err)
 	}
 }
 
-func (s *Server) GetConnBySn(sn string) *Conn {
-	if c, ok := s.sn2fd.Load(sn); ok {
-		return c.(*Conn)
-	}
-	return nil
+func (s *Server) Start() error {
+	for {
+		connections, err := s.Epoller.Wait()
+		if err != nil && err != unix.EINTR {
+			log.Printf("Failed to epoll wait %v", err)
+			continue
+		}
+		for _, conn := range connections {
+			if conn == nil {
+				break
+			}
+			header, err := ws.ReadHeader(conn.C)
+			if err != nil {
+				conn.Close()
+				continue
+			}
 
+			switch header.OpCode {
+			case ws.OpPing:
+				ws.WriteFrame(conn.C, ws.NewPongFrame([]byte("")))
+				continue
+			case ws.OpContinuation | ws.OpPong:
+				continue
+			case ws.OpClose:
+				log.Printf("got close message")
+				conn.Close() //这边不需要收动close epool会自动处理
+				continue
+			default:
+			}
+
+			payload := make([]byte, header.Length)
+			_, err = io.ReadFull(conn.C, payload)
+			if err != nil {
+				return err
+			}
+			if header.Masked {
+				ws.Cipher(payload, header.Mask, 0)
+			}
+			err = s.Handler(conn, payload)
+			if err != nil {
+				log.Printf("[err] handler error %s", err)
+				conn.Close()
+			}
+		}
+	}
 }
 
 func (s *Server) StoreConn(sn string, conn *Conn) {
-	if temp, ok := s.sn2fd.Load(sn); ok {
-		//remove old connection
-		c := temp.(*Conn)
-		c.Close()
-	}
-	s.sn2fd.Store(sn, conn)
+	s.lock.Lock()
+	s.Sn2Conn[sn] = conn
+	s.lock.Unlock()
 }
 
-func (s *Server) GetConn(fd int) *Conn {
-	if c, ok := s.connections.Load(fd); ok {
-		return c.(*Conn)
+func (s *Server) GetConnBySn(sn string) *Conn {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+	if c, ok := s.Sn2Conn[sn]; ok {
+		return c
 	}
 	return nil
+
 }
 
-func (s *Server) Register(conn net.Conn, token poller.Token) error {
-	fd, err := poller.NetConn2Fd(conn, false)
+func (s *Server) Deregister(sn string) {
+	s.lock.Lock()
+	delete(s.Sn2Conn, sn)
+	s.lock.Unlock()
+}
+func HandleMsg(c *Conn, in []byte) error {
+	var message = Message{}
+	err := json.Unmarshal(in, &message)
 	if err != nil {
 		return err
 	}
-	if s.poller.Register(fd, token, interest.READABLE, pollopt.Edge) != nil {
-		return err
+
+	switch message.Type {
+	case TJoin:
+		if c.Sn == "" {
+			c.Sn = message.Payload
+			c.S.StoreConn(c.Sn, c)
+		}
+	default:
+		return errors.New("unreachable")
 	}
-	s.connections.Store(fd, &Conn{C: conn, S: s})
+
+	frame := ws.NewTextFrame([]byte("welcome: " + c.Sn))
+	ws.WriteFrame(c.C, frame)
 	return nil
-}
-
-func (s *Server) Deregister(fd int) error {
-	s.connections.Delete(fd)
-	err := s.poller.Deregister(fd)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *Server) Delete(sn string) {
-	s.sn2fd.Delete(sn)
-}
-
-func (s *Server) Polling(callback func(*poller.Event) error) {
-	s.poller.Polling(callback)
 }

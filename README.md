@@ -1,10 +1,8 @@
 # crab
 
-a simple websocket server base on [poller](https://github.com/widaT/poller).
+golang写的websocket服务，支持超过连接数（实测12w+稳定连接，程序自带压测工具，感兴趣可以测试下）。
 
-inspired by [1m-go-websockets](https://github.com/eranyanay/1m-go-websockets)
-
-
+受[1m-go-websockets](https://github.com/eranyanay/1m-go-websockets)启发
 
 ## usage
 

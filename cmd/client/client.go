@@ -49,9 +49,6 @@ func main() {
 		}
 	}()
 
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-
 	//第一条消息注册下设备sn
 	message := crab.Message{
 		Type:    crab.TJoin,
@@ -69,11 +66,9 @@ func main() {
 				log.Println("write close:", err)
 				return
 			}
-			select {
-			case <-done:
-			case <-time.After(time.Second):
-			}
-			return
+		case <-time.After(time.Second):
+			log.Println("ddddd")
+			c.WriteMessage(websocket.TextMessage, []byte("ddd"))
 		}
 	}
 }
