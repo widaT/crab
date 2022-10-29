@@ -13,5 +13,7 @@ $ run cmd/server/server.go
 #open a new terminal 
 $ run cmd/client/client.go
 #open a new terminal
-$ curl -X POST -d "sn=no123456&msg=88888888888" http://localhost:9333/send_msg
+$ curl -X POST -d "sn=no123456&msg=msg1" http://localhost:9333/send_msg
+$ curl -X POST -d "channel=channel1&msg=broadcastinchannel" http://localhost:9333/broadcastinchannel
+$ curl -X POST -d "msg=broadcastmsg" http://localhost:9333/broadcast
 ```

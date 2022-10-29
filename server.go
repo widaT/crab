@@ -14,8 +14,12 @@ import (
 )
 
 type Server struct {
-	Sn2Conn map[string]*Conn
-	lock    sync.RWMutex
+	// Sn2Conn map[string]*Conn
+	// lock    sync.RWMutex
+
+	Sn2Conn  sync.Map
+	Channels sync.Map
+
 	Handler func(c *Conn, in []byte) error
 	Epoller *epoll
 }
@@ -59,6 +63,31 @@ func runApiServer() {
 		log.Printf("post data sn:%q msg:%q", sn, message)
 		sendMessage(sn, []byte(message))
 	})
+	http.HandleFunc("/broadcastinchannel", func(rw http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		var channel, message string
+		if len(r.PostForm["channel"]) > 0 {
+			channel = r.PostForm["channel"][0]
+		}
+		if len(r.PostForm["msg"]) > 0 {
+			message = r.PostForm["msg"][0]
+		}
+
+		log.Printf("post data channel:%q msg:%q", channel, channel)
+		broadcastinchannel(channel, []byte(message))
+	})
+	http.HandleFunc("/broadcast", func(rw http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		var message string
+
+		if len(r.PostForm["msg"]) > 0 {
+			message = r.PostForm["msg"][0]
+		}
+
+		log.Printf("post data msg:%q", message)
+		broadcast([]byte(message))
+	})
+
 	http.ListenAndServe(":9333", nil)
 }
 
@@ -69,7 +98,27 @@ func sendMessage(sn string, message []byte) error {
 		ws.WriteFrame(c.C, frame)
 		return nil
 	}
-	return errors.New("sn2connection error")
+	return nil
+	//return errors.New("sn2connection error")
+}
+func broadcastinchannel(channel string, message []byte) error {
+	if c, ok := server.Channels.Load(channel); ok {
+		frame := ws.NewTextFrame(message)
+		c.(*sync.Map).Range(func(_, c any) bool {
+			ws.WriteFrame(c.(*Conn).C, frame)
+			return true
+		})
+	}
+	return nil
+}
+
+func broadcast(message []byte) error {
+	frame := ws.NewTextFrame(message)
+	server.Sn2Conn.Range(func(_, c any) bool {
+		ws.WriteFrame(c.(*Conn).C, frame)
+		return true
+	})
+	return nil
 }
 
 func Run() {
@@ -81,9 +130,10 @@ func Run() {
 	}
 
 	server = &Server{
-		Sn2Conn: make(map[string]*Conn),
-		Handler: HandleMsg,
-		Epoller: epoller,
+		Sn2Conn:  sync.Map{},
+		Channels: sync.Map{},
+		Handler:  HandleMsg,
+		Epoller:  epoller,
 	}
 	go server.Start()
 
@@ -118,7 +168,7 @@ func (s *Server) Start() error {
 				continue
 			case ws.OpClose:
 				log.Printf("got close message")
-				conn.Close() //这边不需要收动close epool会自动处理
+				conn.Close()
 				continue
 			default:
 			}
@@ -141,26 +191,34 @@ func (s *Server) Start() error {
 }
 
 func (s *Server) StoreConn(sn string, conn *Conn) {
-	s.lock.Lock()
-	s.Sn2Conn[sn] = conn
-	s.lock.Unlock()
+	if c, ok := s.Sn2Conn.Load(sn); ok {
+		c.(*Conn).Close()
+	}
+	s.Sn2Conn.Store(sn, conn)
 }
 
 func (s *Server) GetConnBySn(sn string) *Conn {
-	s.lock.RLock()
-	defer s.lock.RUnlock()
-	if c, ok := s.Sn2Conn[sn]; ok {
-		return c
+	if c, ok := s.Sn2Conn.Load(sn); ok {
+		return c.(*Conn)
 	}
 	return nil
-
 }
 
 func (s *Server) Deregister(sn string) {
-	s.lock.Lock()
-	delete(s.Sn2Conn, sn)
-	s.lock.Unlock()
+	s.Sn2Conn.Delete(sn)
 }
+
+func (s *Server) StoreChannel(channel, sn string, conn *Conn) {
+	c, _ := s.Channels.LoadOrStore(channel, &sync.Map{})
+	c.(*sync.Map).Store(sn, conn)
+}
+
+func (s *Server) RemoveFromChannels(channel, sn string) {
+	if c, ok := s.Channels.Load(channel); ok {
+		c.(*sync.Map).Delete(sn)
+	}
+}
+
 func HandleMsg(c *Conn, in []byte) error {
 	var message = Message{}
 	err := json.Unmarshal(in, &message)
@@ -173,6 +231,10 @@ func HandleMsg(c *Conn, in []byte) error {
 		if c.Sn == "" {
 			c.Sn = message.Payload
 			c.S.StoreConn(c.Sn, c)
+		}
+		if c.Channel == "" {
+			c.Channel = message.Channel
+			c.S.StoreChannel(c.Channel, c.Sn, c)
 		}
 	default:
 		return errors.New("unreachable")

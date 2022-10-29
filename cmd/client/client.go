@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/widaT/crab"
@@ -53,8 +52,10 @@ func main() {
 	message := crab.Message{
 		Type:    crab.TJoin,
 		Payload: "no123456",
+		Channel: "channel1",
 	}
 	c.WriteMessage(websocket.TextMessage, message.ToJSON())
+
 	for {
 		select {
 		case <-done:
@@ -66,9 +67,6 @@ func main() {
 				log.Println("write close:", err)
 				return
 			}
-		case <-time.After(time.Second):
-			log.Println("ddddd")
-			c.WriteMessage(websocket.TextMessage, []byte("ddd"))
 		}
 	}
 }

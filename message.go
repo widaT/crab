@@ -11,6 +11,7 @@ const (
 type Message struct {
 	Type    MessageType `json:"type"`
 	Payload string      `json:"payload"`
+	Channel string      `json:"channel"`
 }
 
 func (m *Message) ToJSON() []byte {
