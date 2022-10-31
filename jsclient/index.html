@@ -8,6 +8,13 @@
     <script src='main.js'></script>
 </head>
 <body>
+<div>
+
+    <p>curl -X POST -d "sn=no123456&msg=msg1" http://localhost:9333/send_msg</p>
+    <p>curl -X POST -d "channel=channel1&msg=broadcastinchannel" http://localhost:9333/broadcastinchannel</p>
+    <p>curl -X POST -d "msg=broadcastmsg" http://localhost:9333/broadcast</p>
+</div>
+
 <div id="messages"></div>
 </body>
 </html>

@@ -14,9 +14,6 @@ import (
 )
 
 type Server struct {
-	// Sn2Conn map[string]*Conn
-	// lock    sync.RWMutex
-
 	Sn2Conn  sync.Map
 	Channels sync.Map
 
@@ -42,7 +39,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	conn := &Conn{
 		C: c,
 		S: server,
-		//Sn: msg.Payload,
 	}
 	if err := server.Epoller.Add(conn); err != nil {
 		log.Printf("Failed to add connection %v", err)
