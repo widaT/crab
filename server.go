@@ -69,7 +69,7 @@ func runApiServer() {
 			message = r.PostForm["msg"][0]
 		}
 
-		log.Printf("post data channel:%q msg:%q", channel, channel)
+		log.Printf("post data channel:%q msg:%q", channel, message)
 		broadcastinchannel(channel, []byte(message))
 	})
 	http.HandleFunc("/broadcast", func(rw http.ResponseWriter, r *http.Request) {
